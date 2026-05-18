@@ -1,0 +1,191 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: "Inter", "SF Pro Text", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Base surfaces — deep, slightly blue-leaning */
+  --color-bg-base: #0d1117;
+  --color-bg-panel: #161b22;
+  --color-bg-elev: #1c2128;
+  --color-bg-elev-2: #232932;
+  --color-bg-hover: #21262d;
+
+  /* Borders — soft, layered */
+  --color-border: #30363d;
+  --color-border-soft: #21262d;
+  --color-border-strong: #3d444d;
+
+  /* Text — softer white scale (less eye strain) */
+  --color-text-primary: #c9d1d9;
+  --color-text-secondary: #adbac7;
+  --color-text-muted: #768390;
+  --color-text-faint: #545d68;
+
+  /* Accent — set dynamically from the active theme; hover/soft derive via color-mix */
+  --color-accent: #1f6feb;
+  --color-accent-hover: color-mix(in oklab, var(--color-accent) 84%, white);
+  --color-accent-soft: color-mix(in oklab, var(--color-accent) 16%, transparent);
+  --color-selected-bg: rgba(31, 111, 235, 0.18);
+
+  /* Filter / search highlight inside log rows */
+  --color-highlight-bg: rgba(245, 191, 75, 0.32);
+  --color-highlight-fg: #fde68a;
+
+  /* Status / levels — GitHub-dark inspired */
+  --color-success: #3fb950;
+  --color-level-trace: #6e7681;
+  --color-level-debug: #8b949e;
+  --color-level-info: #58a6ff;
+  --color-level-warn: #d29922;
+  --color-level-error: #f85149;
+  --color-level-fatal: #da3633;
+
+  /* Shadows */
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-elev: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 80ms ease;
+}
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+input {
+  font-family: inherit;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--color-bg-elev-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a313b;
+  border-radius: 8px;
+  border: 2px solid var(--color-bg-base);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a4250;
+}
+
+/* Common utility-ish atoms */
+.btn-base {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border-soft);
+  background: var(--color-bg-elev);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.btn-base:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+.btn-icon {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* Square ghost icon button — for modal/panel close, back arrows, etc. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.icon-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+.icon-btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+/* Modern checkbox replacement */
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid var(--color-border-strong);
+  background: var(--color-bg-base);
+  color: transparent;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.checkbox:hover {
+  border-color: var(--color-text-muted);
+}
+.checkbox[data-checked="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+}
+.checkbox[data-checked="true"]:hover {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}

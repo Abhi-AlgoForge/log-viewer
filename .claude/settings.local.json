@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir D:\\\\Log Viewer *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(npm create *)",
+      "PowerShell(Get-ChildItem \"D:\\\\Log Viewer\\\\src\" -Recurse | ForEach-Object { $_.FullName.Replace\\(\"D:\\\\Log Viewer\\\\\", \"\"\\) } | Out-String)",
+      "PowerShell(npm install *)",
+      "Bash(cargo fetch *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(cargo check *)",
+      "Bash(echo \"TSC_EXIT=$?\")",
+      "Bash(echo \"CARGO_EXIT=$?\")",
+      "Bash(cargo test *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(echo \"TSC=$?\")",
+      "Bash(echo \"CARGO=$?\")",
+      "PowerShell(Get-Process *)",
+      "Bash(curl -s -o NUL -w \"HTTP %{http_code} - %{size_download} bytes\\\\n\" \"http://localhost:1420/\")",
+      "Bash(curl -s \"http://localhost:1420/src/index.tsx\")",
+      "Bash(curl -s -o NUL -w \"HTTP %{http_code}\\\\n\" \"http://localhost:1420/src/App.tsx\")",
+      "PowerShell(Test-Path *)",
+      "PowerShell($bytes = [System.IO.File]::ReadAllBytes\\(\"C:\\\\Windows\\\\Logs\\\\CBS\\\\CbsPersist_20260513053652.log\"\\)[0..7]; \\($bytes | ForEach-Object { \"{0:X2}\" -f $_ }\\) -join \" \")",
+      "Bash(curl *)",
+      "Bash(cargo search *)",
+      "Bash(npm test *)",
+      "PowerShell(& \"D:\\\\Log Viewer\\\\scripts\\\\make-icon.ps1\")",
+      "Bash(npx tauri *)",
+      "Bash(git init *)",
+      "Bash(git config *)"
+    ]
+  }
+}
