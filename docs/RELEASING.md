@@ -1,6 +1,10 @@
 # Releasing Log Viewer
 
-End-to-end release flow for cutting a new version: bump versions, build signed installers, generate updater manifests, publish to GitHub Releases.
+End-to-end release flow: bump versions, push a tag, let CI build + sign + publish.
+
+Day-to-day you'll only do steps **1** and **2**. Steps 3-6 happened once during initial setup.
+
+---
 
 ## 1. Bump versions
 
@@ -12,72 +16,76 @@ Three files carry the version string and they must agree:
 
 Commit as `chore: bump version to vX.Y.Z`.
 
-## 2. Generate a release keypair (first release only)
+## 2. Tag + push
 
-```bash
-npm run tauri signer generate -- -w ~/.tauri/log-viewer.key
+```powershell
+git tag vX.Y.Z
+git push --tags
 ```
 
-That writes a private key (`log-viewer.key`) and a public key (`log-viewer.key.pub`). Treat the private key like a credential — never commit it.
+That triggers `.github/workflows/release.yml`, which:
 
-Paste the **public key** into `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`, flip `plugins.updater.active` to `true`, and set `bundle.createUpdaterArtifacts` to `true`. The pubkey is baked into the installer at build time so the updater can verify signatures.
+1. Builds the NSIS `.exe` and MSI on a `windows-latest` runner
+2. Uploads them as an unsigned artifact
+3. Submits the artifact to **SignPath** for code signing (foundation tier, free for OSS)
+4. Downloads the signed binaries
+5. Creates a GitHub Release tagged `vX.Y.Z` with auto-generated release notes and the signed installers attached
 
-## 3. Configure Windows code signing (optional but recommended)
+A signed release takes ~10 minutes to appear at https://github.com/Abhi-AlgoForge/log-viewer/releases.
 
-If you have a code-signing certificate installed in the Windows cert store, add its SHA1 thumbprint to `src-tauri/tauri.conf.json`:
+---
 
-```json
-"bundle": {
-  "windows": {
-    "certificateThumbprint": "YOUR_THUMBPRINT_HEX"
-  }
-}
+# One-time setup
+
+You shouldn't need to redo any of this — it's documented so you know what the moving parts are and where to look when something breaks.
+
+## 3. SignPath Foundation onboarding
+
+1. Apply at https://signpath.org/apply. The text to paste is in [`docs/SIGNPATH_APPLICATION.md`](./SIGNPATH_APPLICATION.md).
+2. Wait for approval (typically 1–2 weeks; they're a small team and review every applicant by hand).
+3. Once approved, install the **SignPath GitHub App** on the repo: https://github.com/apps/signpath-io
+4. In the SignPath portal, create:
+   - A project (slug: `log-viewer`)
+   - A signing policy named `release-signing` configured to recurse into the installer and sign nested `.exe` / `.msi` files
+   - A user API token (rotate it yearly; expires by default)
+
+## 4. GitHub secrets
+
+Add these in repo Settings → Secrets and variables → Actions:
+
+| Secret | Where to find it |
+|---|---|
+| `SIGNPATH_API_TOKEN` | SignPath portal → your user → API tokens → "Generate" |
+| `SIGNPATH_ORGANIZATION_ID` | SignPath portal → org settings, top-right UUID |
+| `SIGNPATH_PROJECT_SLUG` | The project slug you chose (`log-viewer`) |
+| `SIGNPATH_SIGNING_POLICY_SLUG` | `release-signing` (or whatever you named it) |
+
+## 5. (Optional) Updater keypair
+
+Only needed if you want the in-app "Check for updates" button to find new releases:
+
+```powershell
+npm run tauri signer generate -- -w $env:USERPROFILE\.tauri\log-viewer.key
 ```
 
-Without this, installers still build but show SmartScreen warnings on first download.
+Paste the public key into `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`, flip `plugins.updater.active` to `true`, and set `bundle.createUpdaterArtifacts` to `true`.
 
-## 4. Build installers
+Then for each release, the workflow needs the private key exposed as `TAURI_SIGNING_PRIVATE_KEY` (and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if you set one).
 
-```bash
-# Sets the signing key for updater manifest signing
-$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content ~/.tauri/log-viewer.key -Raw
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<password if you set one>"
+## 6. (Optional) macOS / Linux
 
-npm run tauri build
-```
+The workflow currently builds Windows only. For mac/linux:
 
-Bundles end up under `src-tauri/target/release/bundle/`:
-- `msi/Log Viewer_X.Y.Z_x64_en-US.msi` (+ `.sig`)
-- `nsis/Log Viewer_X.Y.Z_x64-setup.exe` (+ `.sig`)
-- (on macOS) `dmg/Log Viewer_X.Y.Z_aarch64.dmg`
-- (on Linux) `appimage/...`, `deb/...`
+1. Add an `ubuntu-latest` / `macos-latest` matrix entry to `release.yml`
+2. Linux: install the Tauri system deps before `tauri build` (`libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`)
+3. macOS: signing/notarization needs an Apple Developer account ($99/yr); set `APPLE_*` secrets and add the Tauri notarization plugin. SignPath does not handle macOS signing — that's Apple's exclusive monopoly.
 
-## 5. Build the updater manifest
+---
 
-The updater plugin expects a JSON file at the endpoint URL. Format:
+## Troubleshooting
 
-```json
-{
-  "version": "X.Y.Z",
-  "notes": "What changed in this release",
-  "pub_date": "2026-05-18T00:00:00Z",
-  "platforms": {
-    "windows-x86_64": {
-      "signature": "<contents of .sig>",
-      "url": "https://github.com/Abhi-AlgoForge/log-viewer/releases/download/vX.Y.Z/Log.Viewer_X.Y.Z_x64-setup.exe"
-    },
-    "darwin-aarch64": { "signature": "...", "url": "..." },
-    "linux-x86_64":   { "signature": "...", "url": "..." }
-  }
-}
-```
+**"Signing request failed: project not found"** — verify `SIGNPATH_PROJECT_SLUG` matches the slug shown in the SignPath portal (case-sensitive, no spaces).
 
-Save as `latest.json` and upload it to the same release.
+**"Artifact validation failed"** — your SignPath signing policy probably forbids the file type you tried to sign. Loosen the artifact configuration in the policy or repack as a `.zip`.
 
-## 6. Cut the GitHub release
-
-- Tag: `vX.Y.Z`
-- Upload: every bundle from step 4 plus `latest.json` from step 5.
-- Publish.
-
-Existing users will see the update on next "Check for updates" click (Settings → About).
+**Release created but no installer attached** — check the `Submit signing request` step in the workflow run; if it succeeded but `Publish GitHub Release` failed, the `signed-installers/` directory was empty. Inspect the SignPath portal for that signing request and re-download manually if needed.
