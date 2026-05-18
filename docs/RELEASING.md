@@ -64,7 +64,7 @@ The updater plugin expects a JSON file at the endpoint URL. Format:
   "platforms": {
     "windows-x86_64": {
       "signature": "<contents of .sig>",
-      "url": "https://github.com/YOU/log-viewer/releases/download/vX.Y.Z/Log.Viewer_X.Y.Z_x64-setup.exe"
+      "url": "https://github.com/Abhi-AlgoForge/log-viewer/releases/download/vX.Y.Z/Log.Viewer_X.Y.Z_x64-setup.exe"
     },
     "darwin-aarch64": { "signature": "...", "url": "..." },
     "linux-x86_64":   { "signature": "...", "url": "..." }

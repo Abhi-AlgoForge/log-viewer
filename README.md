@@ -98,7 +98,7 @@ All shortcuts are remappable in Settings → Keybindings.
 
 ## Install
 
-Pre-built installers are published on the [Releases](https://github.com/YOUR-USER/log-viewer/releases) page once tagged:
+Pre-built installers are published on the [Releases](https://github.com/Abhi-AlgoForge/log-viewer/releases) page once tagged:
 
 - Windows: `.msi` (signed if a code-signing cert is configured) or `.exe` (NSIS)
 - macOS: `.dmg` (notarized if Apple credentials are configured)

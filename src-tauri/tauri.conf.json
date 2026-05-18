@@ -47,7 +47,7 @@
     "updater": {
       "active": false,
       "endpoints": [
-        "https://github.com/YOUR-USER/log-viewer/releases/latest/download/latest.json"
+        "https://github.com/Abhi-AlgoForge/log-viewer/releases/latest/download/latest.json"
       ],
       "dialog": false,
       "pubkey": ""
