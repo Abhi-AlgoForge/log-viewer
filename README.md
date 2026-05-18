@@ -98,13 +98,22 @@ All shortcuts are remappable in Settings → Keybindings.
 
 ## Install
 
-Pre-built installers are published on the [Releases](https://github.com/Abhi-AlgoForge/log-viewer/releases) page once tagged:
+Pre-built installers are on the [Releases](https://github.com/Abhi-AlgoForge/log-viewer/releases) page:
 
-- Windows: `.msi` (signed if a code-signing cert is configured) or `.exe` (NSIS)
-- macOS: `.dmg` (notarized if Apple credentials are configured)
-- Linux: `.AppImage` + `.deb`
+- Windows: `.msi` (policy-managed deployments) or `.exe` (NSIS, recommended)
+- macOS: `.dmg` (build locally with `npm run tauri build` for now)
+- Linux: `.AppImage` + `.deb` (build locally)
 
-After installation, log files (`.log`, `.ndjson`, `.jsonl`) get a "Open with Log Viewer" entry via the bundled file association.
+After installation, log files (`.log`, `.ndjson`, `.jsonl`) get an "Open with Log Viewer" entry via the bundled file association.
+
+### Windows SmartScreen warning
+
+The installers are **unsigned** (code-signing certs cost $200–600/yr; this is a free OSS project). On first run Windows shows:
+
+> **Windows protected your PC**
+> Microsoft Defender SmartScreen prevented an unrecognised app from starting…
+
+Click **More info → Run anyway**. The app itself is fully local and doesn't make any outbound calls except the AI features you opt into (and those go directly to whichever provider you configured). The source for everything in this binary is in this repo — you can also build from source yourself if you'd rather not trust the release bundle.
 
 ---
 
