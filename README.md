@@ -23,6 +23,7 @@ Most viewers nail one or two of these. This one tries to nail all of them:
 - **Format auto-detection** — JSON, ISO 8601 (including Python `,` fractional seconds), syslog, epoch ms/sec, level keywords. No config files.
 - **Continuation-line tinting** — multi-line stack traces inherit the originating level's color so an error block reads as one chunk.
 - **JSON field discovery** — open a JSON-lines source, the Details → Fields tab enumerates every key seen, with example values.
+- **Markdown & JSON documents** — `.md` files open with the raw text and the rendered page side by side; `.json` files get a collapsible tree. Switch between Text / Split / Preview from the bar above the viewer.
 
 ### Search & navigation
 - **Filter DSL** — `level:`, `since:`, `until:`, `/regex/`, plain substrings; space-separated AND. Live debounce, instant on Enter.

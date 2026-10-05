@@ -16,9 +16,12 @@ export async function pickAndOpenFile() {
   try {
     const result = await openDialog({
       multiple: false,
-      title: "Open log file",
+      title: "Open file",
       filters: [
-        { name: "Logs", extensions: ["log", "txt", "out", "err", "ndjson", "jsonl", "json"] },
+        {
+          name: "Logs and documents",
+          extensions: ["log", "txt", "out", "err", "ndjson", "jsonl", "json", "md", "markdown"],
+        },
         { name: "Compressed logs", extensions: ["gz", "zst", "zstd", "bz2"] },
         { name: "All files", extensions: ["*"] },
       ],

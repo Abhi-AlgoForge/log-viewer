@@ -31,6 +31,19 @@ describe("Markdown", () => {
     expect(container.textContent).toContain("A heading");
   });
 
+  it("renders pipe tables with alignment", () => {
+    const { container } = render(() => (
+      <Markdown source={"| Name | Count |\n| --- | ---: |\n| a \\| b | **3** |\n| c | 4 |"} />
+    ));
+    const ths = container.querySelectorAll("th");
+    expect(ths.length).toBe(2);
+    expect(ths[1].style.textAlign).toBe("right");
+    const tds = container.querySelectorAll("td");
+    expect(tds.length).toBe(4);
+    expect(tds[0].textContent).toBe("a | b");
+    expect(tds[1].querySelector("strong")!.textContent).toBe("3");
+  });
+
   it("does not interpret raw HTML in source", () => {
     const { container } = render(() => (
       <Markdown source="<script>alert(1)</script>" />

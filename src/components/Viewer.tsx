@@ -12,7 +12,12 @@ import {
   toggleMultiSelection,
   TEXT_INTENSITY,
   MERGE_VIEW_ID,
+  docKindOf,
+  docViewFor,
+  setDocView,
 } from "../state/session";
+import type { DocViewMode } from "../utils/docKind";
+import { DocPreview } from "./DocPreview";
 import { openPath } from "../services/openFile";
 import type { LogLevel, RawLineDTO } from "../services/api";
 import { api } from "../services/api";
@@ -131,9 +136,71 @@ export function Viewer() {
         when={sessionStore.activeSourceId}
         fallback={<EmptyState />}
       >
-        <ActiveViewer sourceId={sessionStore.activeSourceId!} />
+        <DocAwareViewer sourceId={sessionStore.activeSourceId!} />
       </Show>
     </div>
+  );
+}
+
+const DOC_MODES: DocViewMode[] = ["text", "split", "preview"];
+
+/// Wraps the line viewer for document files (markdown / JSON): adds a mode
+/// switch and, when asked for, a rendered preview beside or instead of the
+/// raw text. Every other source goes straight to the plain viewer.
+function DocAwareViewer(props: { sourceId: string }) {
+  const kind = createMemo(() => docKindOf(sourceById(props.sourceId)));
+  return (
+    <Show when={kind()} fallback={<ActiveViewer sourceId={props.sourceId} />}>
+      {(k) => {
+        const mode = () => docViewFor(props.sourceId, k());
+        const previewLabel = () => (k() === "markdown" ? "Preview" : "Tree");
+        return (
+          <>
+            <div class="flex h-8 shrink-0 items-center gap-3 border-b border-[var(--color-border-soft)] bg-[var(--color-bg-panel)] px-3">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+                {k() === "markdown" ? "Markdown" : "JSON"}
+              </span>
+              <div class="ml-auto flex overflow-hidden rounded-md border border-[var(--color-border)]">
+                <For each={DOC_MODES}>
+                  {(m) => (
+                    <button
+                      class="px-2.5 py-0.5 text-[11px] font-medium"
+                      classList={{
+                        "bg-[var(--color-accent)] text-white": mode() === m,
+                        "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]":
+                          mode() !== m,
+                      }}
+                      title={
+                        m === "text"
+                          ? "Raw text only"
+                          : m === "split"
+                            ? `Raw text and ${previewLabel().toLowerCase()} side by side`
+                            : `${previewLabel()} only`
+                      }
+                      onClick={() => setDocView(props.sourceId, m)}
+                    >
+                      {m === "text" ? "Text" : m === "split" ? "Split" : previewLabel()}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
+            <div class="flex min-h-0 flex-1">
+              <Show when={mode() !== "preview"}>
+                <ActiveViewer sourceId={props.sourceId} plain={k() === "markdown"} />
+              </Show>
+              <Show when={mode() !== "text"}>
+                <DocPreview
+                  sourceId={props.sourceId}
+                  kind={k()}
+                  centered={mode() === "preview"}
+                />
+              </Show>
+            </div>
+          </>
+        );
+      }}
+    </Show>
   );
 }
 
@@ -238,7 +305,10 @@ function shortPath(p: string): string {
   return `…${parts.length > 3 ? "/" : ""}${parts.slice(-3).join("/")}`;
 }
 
-function ActiveViewer(props: { sourceId: string }) {
+/// `plain` shows each line verbatim with no time / level columns — used for
+/// markdown, where the log parser's message extraction would eat syntax
+/// like list dashes and table pipes.
+function ActiveViewer(props: { sourceId: string; plain?: boolean }) {
   let scrollEl!: HTMLDivElement;
   const [cacheVersion, setCacheVersion] = createSignal(0);
   const [maxTimeChars, setMaxTimeChars] = createSignal(8);
@@ -493,7 +563,7 @@ function ActiveViewer(props: { sourceId: string }) {
       <Show when={!isMerge()}>
         <ProgressBanner sourceId={props.sourceId} />
       </Show>
-      <ColumnHeader showSource={isMerge()} />
+      <ColumnHeader showSource={isMerge()} plain={!!props.plain} />
       <div
         ref={scrollEl}
         data-viewer-scroll
@@ -537,6 +607,7 @@ function ActiveViewer(props: { sourceId: string }) {
                 cache={cache}
                 cacheVersion={cacheVersion}
                 showSource={isMerge()}
+                plain={!!props.plain}
                 highlight={highlight()}
                 selectedBlock={selectedBlock()}
               />
@@ -548,7 +619,7 @@ function ActiveViewer(props: { sourceId: string }) {
   );
 }
 
-function ColumnHeader(props: { showSource: boolean }) {
+function ColumnHeader(props: { showSource: boolean; plain: boolean }) {
   return (
     <div class="flex h-7 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-bg-panel)] font-mono text-[11px] font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
       <span class="inline-block w-3 shrink-0 select-none" />
@@ -561,14 +632,18 @@ function ColumnHeader(props: { showSource: boolean }) {
       >
         #
       </span>
-      <span
-        class="inline-block shrink-0 select-none overflow-hidden border-r border-[var(--color-border-soft)] px-3"
-        style={{ width: "var(--time-col)" }}
-      >
-        time
+      <Show when={!props.plain}>
+        <span
+          class="inline-block shrink-0 select-none overflow-hidden border-r border-[var(--color-border-soft)] px-3"
+          style={{ width: "var(--time-col)" }}
+        >
+          time
+        </span>
+        <span class="inline-block w-16 shrink-0 select-none overflow-hidden border-r border-[var(--color-border-soft)] px-3">level</span>
+      </Show>
+      <span class="inline-block select-none overflow-hidden pl-3">
+        {props.plain ? "text" : "message"}
       </span>
-      <span class="inline-block w-16 shrink-0 select-none overflow-hidden border-r border-[var(--color-border-soft)] px-3">level</span>
-      <span class="inline-block select-none overflow-hidden pl-3">message</span>
     </div>
   );
 }
@@ -579,6 +654,7 @@ interface RowProps {
   cache: LineCache;
   cacheVersion: () => number;
   showSource: boolean;
+  plain: boolean;
   highlight: RegExp | null;
   selectedBlock: { start: number; end: number } | null;
 }
@@ -678,16 +754,18 @@ function Row(props: RowProps) {
       >
         {lineNo() + 1}
       </span>
-      <span
-        class="inline-block shrink-0 select-none overflow-hidden border-r border-[var(--color-border-soft)] px-3 text-[var(--color-text-muted)]"
-        style={{ width: "var(--time-col)" }}
-      >
-        {displayTime(line())}
-      </span>
-      <span class={levelClass()}>{level() ?? ""}</span>
+      <Show when={!props.plain}>
+        <span
+          class="inline-block shrink-0 select-none overflow-hidden border-r border-[var(--color-border-soft)] px-3 text-[var(--color-text-muted)]"
+          style={{ width: "var(--time-col)" }}
+        >
+          {displayTime(line())}
+        </span>
+        <span class={levelClass()}>{level() ?? ""}</span>
+      </Show>
       <span class="overflow-hidden whitespace-pre pl-3">
         <TokenizedMessage
-          text={line()?.message ?? line()?.raw ?? " "}
+          text={(props.plain ? line()?.raw : (line()?.message ?? line()?.raw)) ?? " "}
           highlight={props.highlight}
         />
       </span>

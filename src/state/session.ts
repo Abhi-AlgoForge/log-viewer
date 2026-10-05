@@ -6,6 +6,12 @@ import type {
   PatternViewDTO,
   SourceInfoDTO,
 } from "../services/api";
+import {
+  defaultDocViewMode,
+  docKindForName,
+  type DocKind,
+  type DocViewMode,
+} from "../utils/docKind";
 
 export type { LogLevel };
 
@@ -453,6 +459,9 @@ interface SessionState {
   tourStep: number;
   detailsOpen: boolean;
   sidebarTab: "sources" | "patterns" | "bookmarks" | "ai";
+  /// Per-source layout override for document files (markdown / JSON). Unset
+  /// means the kind's default.
+  docView: Record<string, DocViewMode | undefined>;
 }
 
 const [sessionStore, setSession] = createStore<SessionState>({
@@ -486,6 +495,7 @@ const [sessionStore, setSession] = createStore<SessionState>({
   selectedLine: null,
   detailsOpen: false,
   sidebarTab: "sources",
+  docView: {},
 });
 
 export { sessionStore, setSession };
@@ -525,6 +535,7 @@ export function removeSource(id: string) {
   setSession("clusters", id, undefined);
   setSession("bookmarks", id, undefined);
   setSession("following", id, false);
+  setSession("docView", id, undefined);
   if (sessionStore.activeSourceId === id) {
     const next = sessionStore.sources[0]?.id ?? null;
     setSession("activeSourceId", next);
@@ -602,6 +613,21 @@ export function updateFilterProgress(
 
 export function clearFilterFor(sourceId: string) {
   setSession("filters", sourceId, undefined);
+}
+
+/// Document kind of a source, or null when it should be shown as a plain log.
+/// Only real files qualify — command streams never do.
+export function docKindOf(s: SourceInfo | undefined): DocKind | null {
+  if (!s || s.kind !== "file") return null;
+  return docKindForName(s.path ?? s.label);
+}
+
+export function docViewFor(sourceId: string, kind: DocKind): DocViewMode {
+  return sessionStore.docView[sourceId] ?? defaultDocViewMode(kind);
+}
+
+export function setDocView(sourceId: string, mode: DocViewMode) {
+  setSession("docView", sourceId, mode);
 }
 
 export function activeSource(): SourceInfo | undefined {

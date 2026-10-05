@@ -2,7 +2,7 @@ import { For, Show, JSX } from "solid-js";
 
 /// Minimal, dependency-free markdown renderer. Handles what models actually
 /// emit: paragraphs, ATX headings, fenced + inline code, bullet & numbered
-/// lists, blockquotes, bold/italic/strike, and links. We render through JSX
+/// lists, blockquotes, tables, bold/italic/strike, and links. We render through JSX
 /// (no innerHTML / dangerouslySetInnerHTML), so the AI output cannot inject
 /// raw HTML — characters like `<` or `&` show up verbatim.
 
@@ -13,7 +13,34 @@ type Block =
   | { kind: "ulist"; items: string[] }
   | { kind: "olist"; items: string[] }
   | { kind: "quote"; text: string }
+  | { kind: "table"; header: string[]; align: CellAlign[]; rows: string[][] }
   | { kind: "hr" };
+
+type CellAlign = "left" | "center" | "right";
+
+// GFM table delimiter row, e.g. `| --- | :---: | ---: |`.
+const TABLE_DELIM = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
+
+/// Split a table row on unescaped pipes, dropping the optional outer ones.
+function splitTableRow(line: string): string[] {
+  const cells: string[] = [];
+  let cur = "";
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === "\\" && line[i + 1] === "|") {
+      cur += "|";
+      i++;
+    } else if (line[i] === "|") {
+      cells.push(cur);
+      cur = "";
+    } else {
+      cur += line[i];
+    }
+  }
+  cells.push(cur);
+  if (cells.length > 1 && cells[0].trim() === "") cells.shift();
+  if (cells.length > 1 && cells[cells.length - 1].trim() === "") cells.pop();
+  return cells.map((c) => c.trim());
+}
 
 function parseBlocks(src: string): Block[] {
   const lines = src.replace(/\r\n?/g, "\n").split("\n");
@@ -37,6 +64,26 @@ function parseBlocks(src: string): Block[] {
       }
       if (i < lines.length) i++; // skip closing fence
       out.push({ kind: "code", lang, text: buf.join("\n") });
+      continue;
+    }
+    // Table: a header row followed by a delimiter row.
+    if (
+      line.includes("|") &&
+      i + 1 < lines.length &&
+      lines[i + 1].includes("-") &&
+      TABLE_DELIM.test(lines[i + 1])
+    ) {
+      const header = splitTableRow(line);
+      const align = splitTableRow(lines[i + 1]).map<CellAlign>((c) =>
+        c.startsWith(":") && c.endsWith(":") ? "center" : c.endsWith(":") ? "right" : "left",
+      );
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length && lines[i].trim() !== "" && lines[i].includes("|")) {
+        rows.push(splitTableRow(lines[i]));
+        i++;
+      }
+      out.push({ kind: "table", header, align, rows });
       continue;
     }
     // Horizontal rule
@@ -251,6 +298,47 @@ export function Markdown(props: { source: string; class?: string }) {
               <blockquote class="border-l-2 border-[var(--color-accent)]/40 pl-3 text-[var(--color-text-secondary)] italic">
                 {renderInline(b.text)}
               </blockquote>
+            );
+          }
+          if (b.kind === "table") {
+            const cellClass = "border border-[var(--color-border)] px-2 py-1 align-top";
+            return (
+              <div class="overflow-x-auto">
+                <table class="border-collapse text-[var(--color-text-primary)]">
+                  <thead>
+                    <tr>
+                      <For each={b.header}>
+                        {(cell, ix) => (
+                          <th
+                            class={`${cellClass} bg-[var(--color-bg-elev-2)] font-semibold`}
+                            style={{ "text-align": b.align[ix()] ?? "left" }}
+                          >
+                            {renderInline(cell)}
+                          </th>
+                        )}
+                      </For>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <For each={b.rows}>
+                      {(row) => (
+                        <tr>
+                          <For each={row}>
+                            {(cell, ix) => (
+                              <td
+                                class={cellClass}
+                                style={{ "text-align": b.align[ix()] ?? "left" }}
+                              >
+                                {renderInline(cell)}
+                              </td>
+                            )}
+                          </For>
+                        </tr>
+                      )}
+                    </For>
+                  </tbody>
+                </table>
+              </div>
             );
           }
           return <hr class="my-1 border-[var(--color-border-soft)]" />;
