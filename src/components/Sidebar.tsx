@@ -313,7 +313,7 @@ function AiPane() {
     try {
       const cfg = await api.aiGetConfig();
       const active = cfg.providers?.[cfg.activeProvider as keyof typeof cfg.providers];
-      setHasKey(!!active?.apiKey);
+      setHasKey(!!active?.hasKey);
     } catch (e) {
       console.error(e);
     }

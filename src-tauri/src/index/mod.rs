@@ -17,7 +17,10 @@ pub struct LineIndex {
 
 impl LineIndex {
     pub fn new() -> Self {
-        Self { offsets: vec![0], total_bytes: 0 }
+        Self {
+            offsets: vec![0],
+            total_bytes: 0,
+        }
     }
 
     /// Clone for use as a base when appending new bytes (live tail).

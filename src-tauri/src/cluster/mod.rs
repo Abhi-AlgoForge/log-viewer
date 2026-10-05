@@ -85,7 +85,7 @@ impl PatternTree {
         let mut best: Option<(usize, f32)> = None;
         for (ix, pat) in bucket.iter().enumerate() {
             let sim = similarity(&pat.tokens, &tokens);
-            if sim >= SIM_THRESHOLD && best.map_or(true, |(_, b)| sim > b) {
+            if sim >= SIM_THRESHOLD && best.is_none_or(|(_, b)| sim > b) {
                 best = Some((ix, sim));
             }
         }
@@ -179,7 +179,8 @@ fn tokenize(s: &str) -> Vec<Token> {
 
 fn is_variable(t: &str) -> bool {
     // All-digit (with optional sign / decimal)
-    if t.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '-')
+    if t.chars()
+        .all(|c| c.is_ascii_digit() || c == '.' || c == '-')
         && t.chars().any(|c| c.is_ascii_digit())
     {
         return true;
@@ -272,8 +273,12 @@ static TS_PREFIX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-static LEVEL_PREFIX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^\s*\[?(?i:TRACE|DEBUG|INFO|NOTICE|WARN(?:ING)?|ERROR|FATAL|CRITICAL|ALERT|EMERG)\]?\s*").unwrap());
+static LEVEL_PREFIX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"^\s*\[?(?i:TRACE|DEBUG|INFO|NOTICE|WARN(?:ING)?|ERROR|FATAL|CRITICAL|ALERT|EMERG)\]?\s*",
+    )
+    .unwrap()
+});
 
 /// Strip a leading timestamp and bracketed level so clustering keys on the
 /// *message body* rather than the per-line timestamp prefix.
@@ -301,7 +306,9 @@ mod tests {
         t.ingest(3, "Disk full", None);
         let views = t.to_views();
         // Two distinct templates
-        assert!(views.iter().any(|v| v.template.contains("User") && v.count == 3));
+        assert!(views
+            .iter()
+            .any(|v| v.template.contains("User") && v.count == 3));
         assert!(views.iter().any(|v| v.template.contains("Disk")));
     }
 

@@ -32,7 +32,10 @@ impl DirWatchHandle {
         stop: Arc<std::sync::atomic::AtomicBool>,
         watcher: notify::RecommendedWatcher,
     ) -> Self {
-        Self { stop, _watcher: watcher }
+        Self {
+            stop,
+            _watcher: watcher,
+        }
     }
 }
 

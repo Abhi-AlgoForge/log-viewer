@@ -5,6 +5,7 @@
 //!   - `since:5m` / `until:1h` relative time from now
 //!   - `/pattern/`             regex match (case-insensitive)
 //!   - anything else           case-insensitive substring on the raw line
+//!
 //! Multiple terms are space-separated and combined with AND.
 
 use crate::parse::{Level, ParsedLine};
@@ -37,10 +38,8 @@ impl Filter {
                 continue;
             }
             if let Some(rest) = t.strip_prefix("level:") {
-                let levels: Vec<Level> = rest
-                    .split(',')
-                    .filter_map(|s| Level::from_str_loose(s))
-                    .collect();
+                let levels: Vec<Level> =
+                    rest.split(',').filter_map(Level::from_str_loose).collect();
                 if !levels.is_empty() {
                     f.levels = Some(levels);
                 }
@@ -189,7 +188,10 @@ mod tests {
     #[test]
     fn parses_substring() {
         let f = Filter::parse("connection refused");
-        assert!(f.matches("oops connection refused now", &p("oops connection refused now")));
+        assert!(f.matches(
+            "oops connection refused now",
+            &p("oops connection refused now")
+        ));
         assert!(!f.matches("everything fine", &p("everything fine")));
     }
 

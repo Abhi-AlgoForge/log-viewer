@@ -59,7 +59,10 @@ pub fn spawn(label: &str, cmdline: &str) -> AppResult<CommandSource> {
     let stderr = child.stderr.take();
     let path_for_writer = path.clone();
     std::thread::spawn(move || {
-        let mut file = match std::fs::OpenOptions::new().append(true).open(&path_for_writer) {
+        let mut file = match std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path_for_writer)
+        {
             Ok(f) => f,
             Err(_) => return,
         };

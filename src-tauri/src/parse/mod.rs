@@ -49,10 +49,8 @@ pub struct ParsedLine {
 }
 
 static LEVEL_TOKEN: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?i)\b(TRACE|DEBUG|INFO|NOTICE|WARN(?:ING)?|ERROR|FATAL|CRITICAL|ALERT|EMERG)\b",
-    )
-    .unwrap()
+    Regex::new(r"(?i)\b(TRACE|DEBUG|INFO|NOTICE|WARN(?:ING)?|ERROR|FATAL|CRITICAL|ALERT|EMERG)\b")
+        .unwrap()
 });
 
 // ISO 8601 / RFC 3339 at start of line. Accepts `.` or `,` as the fractional
@@ -148,7 +146,11 @@ fn detect_timestamp_with_span(line: &str) -> (Option<i64>, Option<String>, usize
         let s = cap.as_str().to_string();
         let end = m.get(0).map(|w| w.end()).unwrap_or(cap.end());
         let raw: i64 = s.parse().unwrap_or(0);
-        let ts = if raw > 10_000_000_000 { raw } else { raw * 1000 };
+        let ts = if raw > 10_000_000_000 {
+            raw
+        } else {
+            raw * 1000
+        };
         return (Some(ts), Some(s), end);
     }
     if let Some(m) = SYSLOG_TS.captures(line) {
@@ -243,9 +245,7 @@ mod tests {
 
     #[test]
     fn json_extracts_fields() {
-        let p = parse(
-            r#"{"ts":"2026-05-16T12:34:56.789Z","level":"warn","msg":"thing failed"}"#,
-        );
+        let p = parse(r#"{"ts":"2026-05-16T12:34:56.789Z","level":"warn","msg":"thing failed"}"#);
         assert!(p.timestamp.is_some());
         assert_eq!(p.level, Some(Level::Warn));
         assert_eq!(p.message.as_deref(), Some("thing failed"));
@@ -272,9 +272,7 @@ mod tests {
         // Windows Component-Based Servicing format — comma separator after
         // seconds, capitalized level word, lots of padding before the
         // component name.
-        let p = parse(
-            "2024-01-15 10:23:45, Info                  CBS    Loaded Servicing Stack",
-        );
+        let p = parse("2024-01-15 10:23:45, Info                  CBS    Loaded Servicing Stack");
         assert!(p.timestamp.is_some());
         assert_eq!(p.level, Some(Level::Info));
         assert_eq!(

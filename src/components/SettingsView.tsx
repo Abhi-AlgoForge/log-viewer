@@ -601,7 +601,7 @@ function AiSection() {
           <For each={PROVIDERS}>
             {(p) => {
               const isActive = () => active() === p.id;
-              const hasKey = () => !!settingsFor(p.id).apiKey;
+              const hasKey = () => !!settingsFor(p.id).hasKey;
               return (
                 <button
                   class="flex items-center gap-2 rounded-lg border p-3 text-left transition-colors"
@@ -652,7 +652,9 @@ function ProviderCard(props: {
   isActive: boolean;
   onSaved: () => Promise<void>;
 }) {
-  const [apiKey, setApiKey] = createSignal(props.settings.apiKey ?? "");
+  // The stored key is never sent to the frontend, so this only ever holds a
+  // replacement the user is typing. Left blank, Save keeps the stored key.
+  const [apiKey, setApiKey] = createSignal("");
   const [baseUrl, setBaseUrl] = createSignal(props.settings.baseUrl ?? "");
   const [fast, setFast] = createSignal(props.settings.fastModel ?? "");
   const [smart, setSmart] = createSignal(props.settings.smartModel ?? "");
@@ -660,7 +662,7 @@ function ProviderCard(props: {
   const [msg, setMsg] = createSignal<{ text: string; tone: "ok" | "err" } | null>(null);
 
   createEffect(() => {
-    setApiKey(props.settings.apiKey ?? "");
+    setApiKey("");
     setBaseUrl(props.settings.baseUrl ?? "");
     setFast(props.settings.fastModel ?? "");
     setSmart(props.settings.smartModel ?? "");
@@ -694,7 +696,7 @@ function ProviderCard(props: {
     setMsg(null);
     try {
       await api.aiSetProviderSettings(props.def.id, {
-        apiKey: null,
+        clearKey: true,
         baseUrl: trimOrNull(baseUrl()),
         fastModel: trimOrNull(fast()),
         smartModel: trimOrNull(smart()),
@@ -708,7 +710,7 @@ function ProviderCard(props: {
     }
   }
 
-  const hasKey = () => !!props.settings.apiKey;
+  const hasKey = () => !!props.settings.hasKey;
 
   return (
     <Card>
@@ -738,7 +740,7 @@ function ProviderCard(props: {
           <input
             type="password"
             class="h-9 w-full rounded-md border border-[var(--color-border-soft)] bg-[var(--color-bg-elev)] px-3 font-mono text-[13px] focus:border-[var(--color-accent)] focus:outline-none"
-            placeholder={props.def.keyHint}
+            placeholder={hasKey() ? "Key saved — type to replace" : props.def.keyHint}
             value={apiKey()}
             onInput={(e) => setApiKey(e.currentTarget.value)}
             onKeyDown={(e) => {

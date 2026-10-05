@@ -66,11 +66,7 @@ impl FileSource {
 
     /// Build the full line index from current contents. Yields progress to a
     /// callback every `chunk_bytes` bytes so the UI can show indexing %.
-    pub fn build_index(
-        &self,
-        chunk_bytes: usize,
-        mut progress: impl FnMut(u64, u64),
-    ) -> LineIndex {
+    pub fn build_index(&self, chunk_bytes: usize, mut progress: impl FnMut(u64, u64)) -> LineIndex {
         let snap = self.snapshot();
         let data: &[u8] = &snap;
         let total = data.len() as u64;

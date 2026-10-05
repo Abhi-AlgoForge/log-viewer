@@ -1,9 +1,9 @@
 //! Per-source time histogram. Bucket counts by log level so the UI can render
 //! a stacked sparkline for "log volume over time".
 
+use crate::index::LineIndex;
 use crate::parse::{self, Level};
 use crate::source::file::FileSource;
-use crate::index::LineIndex;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -75,7 +75,7 @@ pub fn build_with_progress(
     let mut with_ts: u64 = 0;
     let mut no_ts: u64 = 0;
     // Number of lines actually visited per pass (after applying stride).
-    let visit_total = (total + stride - 1) / stride;
+    let visit_total = total.div_ceil(stride);
     let pass_total = visit_total.saturating_mul(2);
     let report_every = (visit_total / 100).max(2048);
     let mut visited: u64 = 0;

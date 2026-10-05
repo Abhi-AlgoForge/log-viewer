@@ -74,7 +74,9 @@ pub fn run_scan(
         if session.cancel.load(Ordering::Relaxed) {
             return;
         }
-        let Some(bytes) = file.raw_line(&index, n) else { continue };
+        let Some(bytes) = file.raw_line(&index, n) else {
+            continue;
+        };
         let raw = std::str::from_utf8(&bytes).unwrap_or("");
         let parsed = parse::parse(raw);
         if filter.matches(raw, &parsed) {

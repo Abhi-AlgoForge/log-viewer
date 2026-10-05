@@ -1,6 +1,6 @@
 //! Tauri command surface exposed to the frontend.
 
-use crate::ai::{self, prompts, AiConfig, AiState, ChatMessage, ProviderSettings, Speed};
+use crate::ai::{self, prompts, AiConfigView, AiState, ChatMessage, ProviderSettingsUpdate, Speed};
 use crate::cluster::{PatternTree, PatternView};
 use crate::error::{AppError, AppResult};
 use crate::filter::Filter;
@@ -65,10 +65,7 @@ pub fn app_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-fn spawn_indexing(
-    entry: Arc<crate::state::SourceEntry>,
-    app: tauri::AppHandle,
-) {
+fn spawn_indexing(entry: Arc<crate::state::SourceEntry>, app: tauri::AppHandle) {
     let entry_for_task = entry.clone();
     let app_for_task = app.clone();
     let id_for_task = entry.id.clone();
@@ -241,11 +238,7 @@ pub fn source_info(source_id: String, state: State<'_, AppState>) -> AppResult<S
     })
 }
 
-fn build_raw_line(
-    file: &FileSource,
-    index: &crate::index::LineIndex,
-    n: u64,
-) -> Option<RawLine> {
+fn build_raw_line(file: &FileSource, index: &crate::index::LineIndex, n: u64) -> Option<RawLine> {
     let bytes = file.raw_line(index, n)?;
     let raw = String::from_utf8_lossy(&bytes).into_owned();
     let p = parse::parse(&raw);
@@ -560,10 +553,7 @@ pub fn cluster_source(
 }
 
 #[tauri::command]
-pub fn get_patterns(
-    source_id: String,
-    state: State<'_, AppState>,
-) -> AppResult<Vec<PatternView>> {
+pub fn get_patterns(source_id: String, state: State<'_, AppState>) -> AppResult<Vec<PatternView>> {
     let entry = state
         .get(&source_id)
         .ok_or_else(|| AppError::NotFound(source_id.clone()))?;
@@ -680,7 +670,9 @@ pub fn stop_merge(state: State<'_, AppState>) -> AppResult<()> {
 #[tauri::command]
 pub fn merge_status(state: State<'_, AppState>) -> AppResult<Option<MergeStatus>> {
     let g = state.merge.lock();
-    let Some(view) = g.as_ref() else { return Ok(None) };
+    let Some(view) = g.as_ref() else {
+        return Ok(None);
+    };
     let built = view.items.read().len() as u64;
     Ok(Some(MergeStatus {
         id: view.id,
@@ -717,7 +709,9 @@ pub fn get_merge_lines(
             Some(s) => s.clone(),
             None => continue,
         };
-        let Some(entry) = state.get(&src_id) else { continue };
+        let Some(entry) = state.get(&src_id) else {
+            continue;
+        };
         let index = entry.index.read().clone();
         let Some(bytes) = entry.file.raw_line(&index, item.line_number) else {
             continue;
@@ -739,8 +733,8 @@ pub fn get_merge_lines(
 }
 
 #[tauri::command]
-pub fn ai_get_config(ai: State<'_, AiState>) -> AiConfig {
-    ai.snapshot()
+pub fn ai_get_config(ai: State<'_, AiState>) -> AiConfigView {
+    ai.view()
 }
 
 #[derive(Serialize)]
@@ -853,7 +847,9 @@ pub fn export_slice(
                       bytes_written: &mut u64,
                       lines_written: &mut u64|
      -> AppResult<()> {
-        let Some(bytes) = entry.file.raw_line(&index, n) else { return Ok(()) };
+        let Some(bytes) = entry.file.raw_line(&index, n) else {
+            return Ok(());
+        };
         let raw = String::from_utf8_lossy(&bytes);
         match format {
             ExportFormat::Raw => {
@@ -894,7 +890,10 @@ pub fn export_slice(
         }
     }
     w.flush()?;
-    Ok(ExportResult { lines_written, bytes_written })
+    Ok(ExportResult {
+        lines_written,
+        bytes_written,
+    })
 }
 
 #[derive(Serialize, Clone)]
@@ -933,30 +932,28 @@ pub fn start_dir_watch(
     let stop_clone = stop.clone();
     let app_clone = app.clone();
     let watch_path_str = path.clone();
-    std::thread::spawn(move || {
-        loop {
-            if stop_clone.load(Ord::Acquire) {
-                return;
-            }
-            match rx.recv_timeout(std::time::Duration::from_millis(500)) {
-                Ok(Ok(ev)) => {
-                    if matches!(ev.kind, EventKind::Create(_)) {
-                        for p in ev.paths {
-                            if p.is_file() {
-                                let _ = app_clone.emit(
-                                    "dir-new-file",
-                                    DirFileEvent {
-                                        watch_path: watch_path_str.clone(),
-                                        file_path: p.display().to_string(),
-                                    },
-                                );
-                            }
+    std::thread::spawn(move || loop {
+        if stop_clone.load(Ord::Acquire) {
+            return;
+        }
+        match rx.recv_timeout(std::time::Duration::from_millis(500)) {
+            Ok(Ok(ev)) => {
+                if matches!(ev.kind, EventKind::Create(_)) {
+                    for p in ev.paths {
+                        if p.is_file() {
+                            let _ = app_clone.emit(
+                                "dir-new-file",
+                                DirFileEvent {
+                                    watch_path: watch_path_str.clone(),
+                                    file_path: p.display().to_string(),
+                                },
+                            );
                         }
                     }
                 }
-                Ok(Err(_)) | Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
-                Err(_) => return,
             }
+            Ok(Err(_)) | Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(_) => return,
         }
     });
 
@@ -969,7 +966,9 @@ pub fn start_dir_watch(
 #[tauri::command]
 pub fn stop_dir_watch(path: String, state: State<'_, AppState>) -> AppResult<()> {
     if let Some((_, handle)) = state.dir_watches.remove(&path) {
-        handle.stop.store(true, std::sync::atomic::Ordering::Release);
+        handle
+            .stop
+            .store(true, std::sync::atomic::Ordering::Release);
     }
     Ok(())
 }
@@ -1125,7 +1124,7 @@ pub fn clear_temp_files() -> AppResult<u32> {
 #[tauri::command]
 pub fn ai_set_provider_settings(
     provider: String,
-    settings: ProviderSettings,
+    settings: ProviderSettingsUpdate,
     ai: State<'_, AiState>,
 ) -> AppResult<()> {
     ai.set_provider_settings(&provider, settings)
@@ -1134,6 +1133,18 @@ pub fn ai_set_provider_settings(
 #[tauri::command]
 pub fn ai_set_active_provider(provider: String, ai: State<'_, AiState>) -> AppResult<()> {
     ai.set_active(&provider)
+}
+
+/// Cap `s` at `max` bytes without splitting a UTF-8 character.
+fn truncate_at_char_boundary(s: &str, max: usize) -> &str {
+    if s.len() <= max {
+        return s;
+    }
+    let mut end = max;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
 
 fn sample_lines(entry: &Arc<crate::state::SourceEntry>, max: usize) -> Vec<String> {
@@ -1148,7 +1159,11 @@ fn sample_lines(entry: &Arc<crate::state::SourceEntry>, max: usize) -> Vec<Strin
     while (out.len() < max) && n < total {
         if let Some(bytes) = entry.file.raw_line(&index, n) {
             let s = String::from_utf8_lossy(&bytes).into_owned();
-            let trimmed = if s.len() > 240 { format!("{}…", &s[..240]) } else { s };
+            let trimmed = if s.len() > 240 {
+                format!("{}…", truncate_at_char_boundary(&s, 240))
+            } else {
+                s
+            };
             out.push(trimmed);
         }
         n += stride as u64;
@@ -1173,7 +1188,15 @@ pub async fn ai_nl_filter(
         prompt.trim()
     );
     let cfg = ai.snapshot();
-    let text = ai::call_chat(&cfg, Speed::Fast, prompts::NL_FILTER_SYSTEM, &user, 300, 0.0).await?;
+    let text = ai::call_chat(
+        &cfg,
+        Speed::Fast,
+        prompts::NL_FILTER_SYSTEM,
+        &user,
+        300,
+        0.0,
+    )
+    .await?;
     Ok(text.trim().to_string())
 }
 
@@ -1205,7 +1228,15 @@ pub async fn ai_explain_line(
     }
     let user = format!("Surrounding context (chronological):\n{buf}");
     let cfg = ai.snapshot();
-    ai::call_chat(&cfg, Speed::Smart, prompts::EXPLAIN_LINE_SYSTEM, &user, 400, 0.2).await
+    ai::call_chat(
+        &cfg,
+        Speed::Smart,
+        prompts::EXPLAIN_LINE_SYSTEM,
+        &user,
+        400,
+        0.2,
+    )
+    .await
 }
 
 #[derive(Serialize)]
@@ -1324,7 +1355,15 @@ pub async fn ai_explain_lines(
         "User-selected lines (marked with >>>), shown with a small chronological context window:\n\n{buf}"
     );
     let cfg = ai.snapshot();
-    ai::call_chat(&cfg, Speed::Smart, prompts::EXPLAIN_LINE_SYSTEM, &user, 600, 0.2).await
+    ai::call_chat(
+        &cfg,
+        Speed::Smart,
+        prompts::EXPLAIN_LINE_SYSTEM,
+        &user,
+        600,
+        0.2,
+    )
+    .await
 }
 
 /// Root-cause analysis: take a wider context (100 lines before, 20 after) and
@@ -1357,11 +1396,17 @@ pub async fn ai_root_cause(
             }
         }
     }
-    let user = format!(
-        "Surrounding events (chronological; target marked with >>>):\n\n{buf}"
-    );
+    let user = format!("Surrounding events (chronological; target marked with >>>):\n\n{buf}");
     let cfg = ai.snapshot();
-    ai::call_chat(&cfg, Speed::Smart, prompts::ROOT_CAUSE_SYSTEM, &user, 800, 0.2).await
+    ai::call_chat(
+        &cfg,
+        Speed::Smart,
+        prompts::ROOT_CAUSE_SYSTEM,
+        &user,
+        800,
+        0.2,
+    )
+    .await
 }
 
 /// Root-cause analysis across a multi-line selection. We bracket the chosen
@@ -1412,7 +1457,15 @@ pub async fn ai_root_cause_lines(
         "Surrounding events (chronological; selected target lines marked with >>>):\n\n{buf}"
     );
     let cfg = ai.snapshot();
-    ai::call_chat(&cfg, Speed::Smart, prompts::ROOT_CAUSE_SYSTEM, &user, 1000, 0.2).await
+    ai::call_chat(
+        &cfg,
+        Speed::Smart,
+        prompts::ROOT_CAUSE_SYSTEM,
+        &user,
+        1000,
+        0.2,
+    )
+    .await
 }
 
 /// Given several example lines, ask the model to produce a regex that
@@ -1432,7 +1485,11 @@ pub async fn ai_regex_from_examples(
             .iter()
             .take(8)
             .map(|s| {
-                let trimmed = if s.len() > 240 { format!("{}…", &s[..240]) } else { s.clone() };
+                let trimmed = if s.len() > 240 {
+                    format!("{}…", truncate_at_char_boundary(s, 240))
+                } else {
+                    s.clone()
+                };
                 format!("- {trimmed}")
             })
             .collect::<Vec<_>>()
@@ -1449,11 +1506,7 @@ pub async fn ai_regex_from_examples(
     )
     .await?;
     // Strip any wrapping slashes or backticks the model may have included.
-    let cleaned = raw
-        .trim()
-        .trim_matches('`')
-        .trim_matches('/')
-        .to_string();
+    let cleaned = raw.trim().trim_matches('`').trim_matches('/').to_string();
     Ok(cleaned)
 }
 
@@ -1474,7 +1527,10 @@ pub async fn ai_summarize_patterns(
     }
     let mut lines = String::new();
     for v in views.iter().take(50) {
-        let lvl = v.level.map(|l| format!("{l:?}")).unwrap_or_else(|| "-".into());
+        let lvl = v
+            .level
+            .map(|l| format!("{l:?}"))
+            .unwrap_or_else(|| "-".into());
         lines.push_str(&format!("{} — {} — {}\n", v.template, v.count, lvl));
     }
     let user = format!("Pattern table:\n{lines}");
@@ -1629,7 +1685,10 @@ pub fn ai_seed_summarize_patterns(
     }
     let mut lines = String::new();
     for v in views.iter().take(50) {
-        let lvl = v.level.map(|l| format!("{l:?}")).unwrap_or_else(|| "-".into());
+        let lvl = v
+            .level
+            .map(|l| format!("{l:?}"))
+            .unwrap_or_else(|| "-".into());
         lines.push_str(&format!("{} — {} — {}\n", v.template, v.count, lvl));
     }
     let user = format!("Pattern table:\n{lines}");
@@ -1668,4 +1727,20 @@ pub async fn ai_chat(
         temperature.unwrap_or(0.2),
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_at_char_boundary;
+
+    #[test]
+    fn truncate_respects_char_boundaries() {
+        assert_eq!(truncate_at_char_boundary("short", 240), "short");
+        assert_eq!(truncate_at_char_boundary("abcdef", 3), "abc");
+        // 'é' is 2 bytes; a cut at byte 2 would land inside it.
+        assert_eq!(truncate_at_char_boundary("aéz", 2), "a");
+        // 239 ASCII bytes followed by a 3-byte char straddling byte 240.
+        let s = format!("{}€tail", "x".repeat(239));
+        assert_eq!(truncate_at_char_boundary(&s, 240).len(), 239);
+    }
 }

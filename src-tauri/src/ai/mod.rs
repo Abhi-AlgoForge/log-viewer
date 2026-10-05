@@ -3,8 +3,8 @@
 //! Each provider has a default base URL and default fast/smart model names;
 //! users can override any of these in Settings. One provider is active at a
 //! time. API keys live in `<config-dir>/log-viewer/config.json` and never
-//! leave the Rust process — the frontend invokes typed commands that wrap the
-//! HTTP calls here.
+//! leave the Rust process — the frontend only sees a redacted view
+//! ([`AiConfigView`]) and invokes typed commands that wrap the HTTP calls here.
 
 use crate::error::{AppError, AppResult};
 use parking_lot::RwLock;
@@ -86,6 +86,43 @@ pub struct ProviderSettings {
     pub smart_model: Option<String>,
 }
 
+/// Redacted view of [`ProviderSettings`] for the frontend: reports whether a
+/// key is stored without revealing it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSettingsView {
+    pub has_key: bool,
+    pub base_url: Option<String>,
+    pub fast_model: Option<String>,
+    pub smart_model: Option<String>,
+}
+
+/// Redacted view of [`AiConfig`] for the frontend.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiConfigView {
+    pub active_provider: String,
+    pub providers: HashMap<String, ProviderSettingsView>,
+}
+
+/// Settings write from the frontend. Since the stored key is never sent to
+/// the frontend, a missing `api_key` keeps the existing one; `clear_key`
+/// removes it.
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSettingsUpdate {
+    #[serde(default)]
+    pub api_key: Option<String>,
+    #[serde(default)]
+    pub clear_key: bool,
+    #[serde(default)]
+    pub base_url: Option<String>,
+    #[serde(default)]
+    pub fast_model: Option<String>,
+    #[serde(default)]
+    pub smart_model: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiConfig {
@@ -140,31 +177,65 @@ impl AiState {
         let cfg = read_config().unwrap_or_default().migrate();
         // Persist the migration so legacy field stops appearing in the JSON.
         let _ = write_config(&cfg);
-        Self { config: RwLock::new(cfg) }
+        Self {
+            config: RwLock::new(cfg),
+        }
     }
 
     pub fn snapshot(&self) -> AiConfig {
         self.config.read().clone()
     }
 
+    pub fn view(&self) -> AiConfigView {
+        let g = self.config.read();
+        AiConfigView {
+            active_provider: g.active_provider.clone(),
+            providers: g
+                .providers
+                .iter()
+                .map(|(id, s)| {
+                    let view = ProviderSettingsView {
+                        has_key: s.api_key.as_deref().is_some_and(|k| !k.is_empty()),
+                        base_url: s.base_url.clone(),
+                        fast_model: s.fast_model.clone(),
+                        smart_model: s.smart_model.clone(),
+                    };
+                    (id.clone(), view)
+                })
+                .collect(),
+        }
+    }
+
     pub fn set_provider_settings(
         &self,
         provider: &str,
-        settings: ProviderSettings,
+        update: ProviderSettingsUpdate,
     ) -> AppResult<()> {
         if Provider::from_id(provider).is_none() {
-            return Err(AppError::InvalidRequest(format!("unknown provider: {provider}")));
+            return Err(AppError::InvalidRequest(format!(
+                "unknown provider: {provider}"
+            )));
         }
         {
             let mut g = self.config.write();
-            g.providers.insert(provider.to_string(), settings);
+            let entry = g.providers.entry(provider.to_string()).or_default();
+            if update.clear_key {
+                entry.api_key = None;
+            } else if let Some(key) = update.api_key.filter(|k| !k.is_empty()) {
+                entry.api_key = Some(key);
+            }
+            entry.base_url = update.base_url;
+            entry.fast_model = update.fast_model;
+            entry.smart_model = update.smart_model;
         }
         write_config(&self.config.read())
     }
 
     pub fn set_active(&self, provider: &str) -> AppResult<()> {
         if Provider::from_id(provider).is_none() {
-            return Err(AppError::InvalidRequest(format!("unknown provider: {provider}")));
+            return Err(AppError::InvalidRequest(format!(
+                "unknown provider: {provider}"
+            )));
         }
         {
             let mut g = self.config.write();
@@ -208,7 +279,10 @@ pub async fn call_chat(
     max_tokens: u32,
     temperature: f32,
 ) -> AppResult<String> {
-    let msgs = [ChatMessage { role: "user".into(), content: user.into() }];
+    let msgs = [ChatMessage {
+        role: "user".into(),
+        content: user.into(),
+    }];
     call_chat_multi(cfg, speed, system, &msgs, max_tokens, temperature).await
 }
 
@@ -234,12 +308,16 @@ pub async fn call_chat_multi(
         .settings(&cfg.active_provider)
         .cloned()
         .unwrap_or_default();
-    let key = settings.api_key.as_deref().filter(|k| !k.is_empty()).ok_or_else(|| {
-        AppError::InvalidRequest(format!(
-            "API key for {} is not set — open Settings → AI",
-            cfg.active_provider
-        ))
-    })?;
+    let key = settings
+        .api_key
+        .as_deref()
+        .filter(|k| !k.is_empty())
+        .ok_or_else(|| {
+            AppError::InvalidRequest(format!(
+                "API key for {} is not set — open Settings → AI",
+                cfg.active_provider
+            ))
+        })?;
     let base = settings
         .base_url
         .as_deref()
@@ -324,7 +402,10 @@ async fn call_anthropic_multi(
 ) -> AppResult<String> {
     let msgs: Vec<AnthropicMessage> = messages
         .iter()
-        .map(|m| AnthropicMessage { role: m.role.as_str(), content: m.content.as_str() })
+        .map(|m| AnthropicMessage {
+            role: m.role.as_str(),
+            content: m.content.as_str(),
+        })
         .collect();
     let body = AnthropicBody {
         model,
@@ -358,8 +439,12 @@ async fn call_anthropic_multi(
             raw.chars().take(400).collect::<String>()
         )));
     }
-    let parsed: AnthropicResponse = serde_json::from_str(&raw)
-        .map_err(|e| AppError::Other(format!("parse anthropic response: {e} — {}", &raw[..raw.len().min(400)])))?;
+    let parsed: AnthropicResponse = serde_json::from_str(&raw).map_err(|e| {
+        AppError::Other(format!(
+            "parse anthropic response: {e} — {}",
+            raw.chars().take(400).collect::<String>()
+        ))
+    })?;
     Ok(parsed
         .content
         .into_iter()
@@ -406,9 +491,15 @@ async fn call_openai_multi(
     temperature: f32,
 ) -> AppResult<String> {
     let mut msgs: Vec<OpenAiMessage> = Vec::with_capacity(messages.len() + 1);
-    msgs.push(OpenAiMessage { role: "system", content: system });
+    msgs.push(OpenAiMessage {
+        role: "system",
+        content: system,
+    });
     for m in messages {
-        msgs.push(OpenAiMessage { role: m.role.as_str(), content: m.content.as_str() });
+        msgs.push(OpenAiMessage {
+            role: m.role.as_str(),
+            content: m.content.as_str(),
+        });
     }
     let body = OpenAiBody {
         model,
@@ -436,8 +527,12 @@ async fn call_openai_multi(
             raw.chars().take(400).collect::<String>()
         )));
     }
-    let parsed: OpenAiResponse = serde_json::from_str(&raw)
-        .map_err(|e| AppError::Other(format!("parse openai response: {e} — {}", &raw[..raw.len().min(400)])))?;
+    let parsed: OpenAiResponse = serde_json::from_str(&raw).map_err(|e| {
+        AppError::Other(format!(
+            "parse openai response: {e} — {}",
+            raw.chars().take(400).collect::<String>()
+        ))
+    })?;
     Ok(parsed
         .choices
         .into_iter()

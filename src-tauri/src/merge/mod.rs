@@ -56,7 +56,11 @@ impl MergeView {
     }
 }
 
-pub fn build(view: Arc<MergeView>, entries: Vec<Arc<SourceEntry>>, mut report: impl FnMut(u64, u64)) {
+pub fn build(
+    view: Arc<MergeView>,
+    entries: Vec<Arc<SourceEntry>>,
+    mut report: impl FnMut(u64, u64),
+) {
     let mut total: u64 = 0;
     for e in &entries {
         total = total.saturating_add(e.index.read().line_count());
@@ -80,7 +84,9 @@ pub fn build(view: Arc<MergeView>, entries: Vec<Arc<SourceEntry>>, mut report: i
                 return;
             }
             scanned += 1;
-            let Some(bytes) = entry.file.raw_line(&index, n) else { continue };
+            let Some(bytes) = entry.file.raw_line(&index, n) else {
+                continue;
+            };
             let raw = std::str::from_utf8(&bytes).unwrap_or("");
             let p = parse::parse(raw);
             let ts = if let Some(t) = p.timestamp {

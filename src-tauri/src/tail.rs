@@ -72,7 +72,10 @@ pub fn start(
         }
     });
 
-    Ok(TailHandle { _watcher: watcher, stop })
+    Ok(TailHandle {
+        _watcher: watcher,
+        stop,
+    })
 }
 
 fn event_targets_path(ev: &Event, path: &std::path::Path) -> bool {

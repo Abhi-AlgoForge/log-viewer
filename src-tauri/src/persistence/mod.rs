@@ -51,7 +51,9 @@ pub struct WorkspaceStore {
 impl WorkspaceStore {
     pub fn load() -> Self {
         let state = read_workspace().unwrap_or_default();
-        Self { state: Mutex::new(state) }
+        Self {
+            state: Mutex::new(state),
+        }
     }
 
     pub fn snapshot(&self) -> WorkspaceState {
@@ -66,11 +68,7 @@ impl WorkspaceStore {
         write_workspace(&self.state.lock())
     }
 
-    pub fn set_last_session(
-        &self,
-        paths: Vec<String>,
-        active: Option<String>,
-    ) -> AppResult<()> {
+    pub fn set_last_session(&self, paths: Vec<String>, active: Option<String>) -> AppResult<()> {
         {
             let mut g = self.state.lock();
             g.last_session = paths;

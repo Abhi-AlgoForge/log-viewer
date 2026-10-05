@@ -107,8 +107,20 @@ export interface MergeProgressDTO {
 
 export type AiProviderId = "anthropic" | "openai" | "deepseek";
 
+/// Redacted provider settings as returned by the backend — the stored key
+/// itself never reaches the frontend, only whether one is set.
 export interface ProviderSettingsDTO {
+  hasKey?: boolean;
+  baseUrl?: string | null;
+  fastModel?: string | null;
+  smartModel?: string | null;
+}
+
+/// Settings write. A null/missing `apiKey` keeps the stored key; `clearKey`
+/// removes it.
+export interface ProviderSettingsUpdateDTO {
   apiKey?: string | null;
+  clearKey?: boolean;
   baseUrl?: string | null;
   fastModel?: string | null;
   smartModel?: string | null;
@@ -219,7 +231,7 @@ export const api = {
   getPatterns: (sourceId: string) =>
     invoke<PatternViewDTO[]>("get_patterns", { sourceId }),
   aiGetConfig: () => invoke<AiConfigDTO>("ai_get_config"),
-  aiSetProviderSettings: (provider: string, settings: ProviderSettingsDTO) =>
+  aiSetProviderSettings: (provider: string, settings: ProviderSettingsUpdateDTO) =>
     invoke<void>("ai_set_provider_settings", { provider, settings }),
   aiSetActiveProvider: (provider: string) =>
     invoke<void>("ai_set_active_provider", { provider }),
